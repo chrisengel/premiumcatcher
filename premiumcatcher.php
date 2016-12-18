@@ -17,7 +17,7 @@ echo "		<meta property=\"og:site_name\" content=\"Bitcoin Futures Premiums\"/>";
 
 echo "</head>\n";
 echo "<center>\n";
-echo "<body>";
+echo "<body style='background-color:#d3d3d3'>";
 
 $date = date('Y-m-d H:i:s');
 print_r($date."(UTC)");
@@ -30,8 +30,7 @@ echo "Confused about what this stuff means? <a href='http://www.investopedia.com
 echo "<br>";
 echo "Additionally, you can highlight the graph and column names to view <span class=\"hotspot\" onmouseover=\"tooltip.show('You will see a helpful little description just like this. Do the same below to help you out if rusty or new. The tooltips only appear on first exchange, not the rest.');\" onmouseout=\"tooltip.hide();\">tooltip descriptions marked with (?)</span>";
 echo "<br>";
-print_r("Want to show appreciation or support efforts to make this to look prettier? Send BTC to author: 3CnxCCrkfJGrjg6XCdVxGEbbcDgQCYGLr6");
-echo "<img src='https://chart.googleapis.com/chart?cht=qr&chs=50x50&chl=3CnxCCrkfJGrjg6XCdVxGEbbcDgQCYGLr6'>";
+
 
 #ini_set('display_errors',1);
 #error_reporting(E_ALL);
@@ -338,6 +337,30 @@ $cfdec16price = "0";
 return;
 }
 
+
+// Deribit 
+
+
+$derijson = file_get_contents('https://www.deribit.com/api/v1/public/getlasttrades?instrument=BTC-23DEC16');
+$deriarray = json_decode($derijson, true);
+$deriprice = $deriarray['result'][0]['price'];
+$deriindex = $deriarray['result'][0]['indexPrice'];
+
+$derijson2 = file_get_contents('https://www.deribit.com/api/v1/public/getorderbook?instrument=BTC-23DEC16');
+$deriarray2 = json_decode($derijson2, true);
+
+$deribid = $deriarray2['result']['bids'][0]['price'];
+$deriask = $deriarray2['result']['asks'][0]['price'];
+
+$deribidaskspread = round(($deriask - $deribid),2);
+$deribidaskspreadperc = round(($deribidaskspread / $deriprice)*100,2); 
+
+$derispread = round(($deriprice - $deriindex),2);
+$derispreadperc = round(($derispread / $deriindex)*100, 2);
+$derispreadpa2 = round((pow(($deriprice/$deriindex), (365/$okcwdays))-1),2)*100;
+$derispreadpa = round($derispreadpa2,2);
+
+
 echo "<html xmlns='http://www.w3.org/1999/xhtml'>\n";
 echo "<head>\n";
 echo "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n";
@@ -367,7 +390,8 @@ echo "                color: '#808080'\n";
 echo "            }]\n";
 echo "        },\n";
 echo "        tooltip: {\n";
-echo "            valueSuffix: ' USD'\n";
+echo "            valueSuffix: ' USD',\n";
+echo "            shared: true\n";
 echo "        },\n";
 echo "        legend: {\n";
 echo "            layout: 'vertical',\n";
@@ -381,6 +405,9 @@ echo "            data: [".$theokcindex.", ".$theokcweekly.", ".$theokcbiweekly.
 echo "        }, {\n";
 echo "            name: 'CryptoFacilities',\n";
 echo "            data: [".$cfbpi.", ".$cfweeklyprice.", ".$cfbiweeklyprice.", ".$cfdec16price."]\n";
+echo "        }, {\n";
+echo "            name: 'Deribit',\n";
+echo "            data: [".$deriindex.", ".$deriprice.", null, null]\n";
 echo "        }, {\n";
 echo "            connectNulls: true,\n";
 echo "            name: 'BitMEX',\n";
@@ -412,7 +439,7 @@ echo "    <th class=\"tg-c9cr\"><span class=\"hotspot\" onmouseover=\"tooltip.sh
 echo "    <th class=\"tg-c9cr\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This shows the spread between the bid and ask on the given contract, in percentage terms.');\" onmouseout=\"tooltip.hide();\">Bid-Ask (%) (?)</span></th>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires every Friday at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">Weekly (?)</span></td>\n";
+echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires every Friday (like all weekly contracts) at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">Weekly (?)</span></td>\n";
 echo "    <td class=\"tg-yw4l\">$".$theokcweekly."</td>\n";
 echo "    <td class=\"tg-031e\">$".$weeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$weeklyspreadperc2."%</td>\n";
@@ -489,7 +516,38 @@ echo "    <td class=\"tg-031e\">$".$cfdec16bidaskspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfdec16bidaskspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "</table>";
-
+echo "<br>";
+echo "<a href='https://www.deribit.com'><h1>Deribit</h1></a>\n";
+echo "<span class=\"hotspot\" onmouseover=\"tooltip.show('Deribit index is based on multiple BTC/USD exchanges.');\" onmouseout=\"tooltip.hide();\">Index (?):</span> $".$deriindex." <a href=\"https://test.deribit.com/main#/prinx_chart\">[Components]</a>";
+echo "<style type=\"text/css\">\n";
+echo ".tg  {border-collapse:collapse;border-spacing:0;}\n";
+echo ".tg td{font-family:Arial, sans-serif;font-size:14px;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;}\n";
+echo ".tg th{font-family:Arial, sans-serif;font-size:14px;font-weight:normal;padding:10px 5px;border-style:solid;border-width:1px;overflow:hidden;word-break:normal;}\n";
+echo ".tg .tg-c9cr{font-style:italic}\n";
+echo ".tg .tg-e3zv{font-weight:bold}\n";
+echo ".tg .tg-yw4l{vertical-align:top}\n";
+echo "</style>\n";
+echo "<table class=\"tg\">\n";
+echo "  <tr>\n";
+echo "    <th class=\"tg-c9cr\">Type</th>\n";
+echo "    <th class=\"tg-yw4l\">Price</th>\n";
+echo "    <th class=\"tg-c9cr\">Premium ($)</th>\n";
+echo "    <th class=\"tg-c9cr\">Premium (%)</th>\n";
+echo "    <th class=\"tg-c9cr\">Annualized Premium (%)</th>\n";
+echo "    <th class=\"tg-c9cr\">Bid-Ask Spread ($)</th>\n";
+echo "    <th class=\"tg-c9cr\">Bid-Ask (%)</th>\n";
+echo "  </tr>\n";
+echo "  <tr>\n";
+echo "    <td class=\"tg-e3zv\">Weekly</td>\n";
+echo "    <td class=\"tg-yw4l\">$".$deriprice."</td>\n";
+echo "    <td class=\"tg-031e\">$".$derispread."</td>\n";
+echo "    <td class=\"tg-031e\">".$derispreadperc."%</td>\n";
+echo "    <td class=\"tg-031e\">".$derispreadpa2."%</td>\n";
+echo "    <td class=\"tg-031e\">$".$deribidaskspread."</td>\n";
+echo "    <td class=\"tg-031e\">".$deribidaskspreadperc."%</td>\n";
+echo "  </tr>\n";
+echo "</table>";
+echo "<br>";
 
 echo "<a href='https://www.bitmex.com/register/RrmvSe'><h1>BitMEX</h1></a>\n";
 echo "<span class=\"hotspot\" onmouseover=\"tooltip.show('BitMEX index is based on a third party 5-exchange XBX Index from Kaiko.');\" onmouseout=\"tooltip.hide();\">Index (?):</span> $".$bitmexindicative." <a href=\"https://tradeblock.com/markets/\">[Components]</a>";
@@ -521,12 +579,12 @@ echo "    <td class=\"tg-031e\">$".$bitmexdailybidaskspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$bitmexdailybidaskspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "</table>";
-
-
+echo "<br>";
+print_r("Want to show appreciation or support efforts to make this to look prettier? Send BTC to author: 3CnxCCrkfJGrjg6XCdVxGEbbcDgQCYGLr6");
+echo "<img src='https://chart.googleapis.com/chart?cht=qr&chs=50x50&chl=3CnxCCrkfJGrjg6XCdVxGEbbcDgQCYGLr6'>";
 echo "</body>";
 echo "</html>";
 
 
 ?>
-
 
