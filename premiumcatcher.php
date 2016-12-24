@@ -32,8 +32,8 @@ echo "Additionally, you can highlight the graph and column names to view <span c
 echo "<br>";
 
 
-#ini_set('display_errors',1);
-#error_reporting(E_ALL);
+// ini_set('display_errors',1);
+// error_reporting(E_ALL);
 
 $btcffrjson = file_get_contents('https://api.bitfinex.com/v1/lendbook/BTC?limit_bids=1&limit_asks=0');
 $btcffrarray = json_decode($btcffrjson, true);
@@ -50,11 +50,56 @@ $usdffr = $usdffrarray['asks'][0]['rate'];
 $usdffr = "N/A";
 }
 echo "<br>";
-print_r("There's no risk-free return in BTC, but as a close proxy can use: ");
+print_r("For purposes of discount-rate estimation and BTC & USD borrow/lend rates in covered interest parity arbitrage modeling, you can use: ");
 echo "<br>";
 print_r("Bitfinex BTC yield (APY): ".$btcffr."%, USD yield (APY): ".$usdffr."%");
 
 echo "<br>";
+
+//Grab different dates for instruments
+
+$cfinstrumentjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/v2/instruments');
+$cfinstrumentarray = json_decode($cfinstrumentjson, true);
+$cfinstruments=$cfinstrumentarray['instruments'];
+$cfinstrumentcount=count($cfinstruments);
+
+for( $x = 0; $x <= $cfinstrumentcount; $x++ ) {
+	$cflasttradingtime=$cfinstruments[$x]['lastTradingTime'];
+	$cfsymbol=substr($cfinstruments[$x]['symbol'],0,5);
+	$cfticker=$cfinstruments[$x]['symbol'];
+	$cftype=$cfinstruments[$x]['type'];
+	if ($cftype == "futures" and $cfsymbol == "f-xbt") {
+		$cfexpiry = strtotime($cflasttradingtime);
+		$currentts = strtotime($cfinstrumentarray['serverTime']);
+		$timetofunding = $cfexpiry-$currentts;
+		$daysfunding=$timetofunding/60/60/24;
+		if ($daysfunding<7) {
+		$cfweekly=strtoupper(substr($cfticker,0,11)).substr($cfticker,11,5).strtoupper(substr($cfticker,16,2));
+                $cfweeklyleft=$daysfunding;
+                $cfweeklydate=substr($cflasttradingtime,0,10);
+}elseif ($daysfunding < 14 and $daysfunding>7) {
+		$cfbiweekly=strtoupper(substr($cfticker,0,11)).substr($cfticker,11,5).strtoupper(substr($cfticker,16,2));
+                $cfbiweeklyleft=$daysfunding;
+                $cfbiweeklydate=substr($cflasttradingtime,0,10);
+}elseif ($daysfunding > 14 and $daysfunding<90) {
+		$cfquarterly=strtoupper(substr($cfticker,0,11)).substr($cfticker,11,5).strtoupper(substr($cfticker,16,2));
+                $cfquarterlyleft=$daysfunding;
+                $cfquarterlydate=substr($cflasttradingtime,0,10);
+}elseif ($daysfunding > 90 and $daysfunding<180) {
+		$cfsemiannual=strtoupper(substr($cfticker,0,11)).substr($cfticker,11,5).strtoupper(substr($cfticker,16,2));
+                $cfsemiannualleft=$daysfunding;
+                $cfsemiannualdate=substr($cflasttradingtime,0,10);
+}elseif ($daysfunding > 180 and $daysfunding<270) {
+		$cftriquarterly=strtoupper(substr($cfticker,0,11)).substr($cfticker,11,5).strtoupper(substr($cfticker,16,2));
+                $cftriquarterlyleft=$daysfunding;
+                $cftriquarterlydate=substr($cflasttradingtime,0,10);
+}
+
+}
+
+}
+
+
 
 
 	$getokcindex = file_get_contents('https://www.okcoin.com/api/v1/future_index.do?symbol=btc_usd');
@@ -86,7 +131,7 @@ $okcbdays = 14;
 $okcwdays = (6-$dayofweek)+2;
 $okcbdays = $okcwdays + 7;
 }
-$weeklyspreadpa2 = (pow(($theokcweekly/$theokcindex), (365/$okcwdays))-1)*100;
+$weeklyspreadpa2 = (pow(($theokcweekly/$theokcindex), (365/$cfweeklyleft))-1)*100;
 $weeklyspreadpa = round($weeklyspreadpa2, 2);
 
 	$getokcbiweekly = file_get_contents('https://www.okcoin.com/api/v1/future_ticker.do?symbol=btc_usd&contract_type=next_week');
@@ -95,7 +140,7 @@ $theokcbiweekly = round(($okcbiweekly['ticker']['last']),2);
 $biweeklyspread = round(($theokcbiweekly - $theokcindex),2);
 $biweeklyspreadperc = ($biweeklyspread / $theokcindex)*100;
 $biweeklyspreadperc2 = round($biweeklyspreadperc, 2);
-$biweeklyspreadpa2 = (pow(($theokcbiweekly/$theokcindex), (365/$okcbdays))-1)*100;
+$biweeklyspreadpa2 = (pow(($theokcbiweekly/$theokcindex), (365/$cfbiweeklyleft))-1)*100;
 $biweeklyspreadpa = round($biweeklyspreadpa2, 2);
 $theokcbiweeklybid = $okcbiweekly['ticker']['buy'];
 $theokcbiweeklyask = $okcbiweekly['ticker']['sell'];
@@ -125,7 +170,7 @@ $difference = $okcqdate - $today;
 if ($difference < 0) { $difference = 0; }
 $okcqdays = floor($difference/60/60/24);
 
-$quarterlyspreadpa2 = (pow(($theokcquarterly/$theokcindex), (365/$okcqdays))-1)*100;
+$quarterlyspreadpa2 = (pow(($theokcquarterly/$theokcindex), (365/$cfquarterlyleft))-1)*100;
 $quarterlyspreadpa = round($quarterlyspreadpa2, 2);
 
 
@@ -154,6 +199,8 @@ $bitmexdailyspreadtest = round((pow((1+($bitmexdailyspread / $bitmexindicative))
 
 // CryptoFacilities stuff
 
+
+
 $cfbpijson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/cfbpi');
 $cfbpiarray = json_decode($cfbpijson, true);
 if (isset($cfbpiarray)) {
@@ -170,7 +217,8 @@ return;
 
 // cf contract weekly
 
-$cfweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable=T-XBT:USD-Dec16-W4&unit=USD');
+
+$cfweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable='.$cfweekly.'&unit=USD');
 $cfweeklyarray = json_decode($cfweeklyjson, true);
 
 if (isset($cfweeklyarray)) {
@@ -179,7 +227,7 @@ $cfweeklyprice = $cfweeklyarray['last'];
 $cfweeklyspread = round(($cfweeklyprice - $cfbpi),2);
 $cfweeklyspreadperc = round(($cfweeklyspread / $cfbpi)*100, 2);
 
-$cfweeklyspreadpa2=(pow(($cfweeklyprice/$cfbpi), (365/$okcwdays))-1)*100;
+$cfweeklyspreadpa2=(pow(($cfweeklyprice/$cfbpi), (365/$cfweeklyleft))-1)*100;
 $cfweeklyspreadpa=round($cfweeklyspreadpa2,2);
 
 $cfweeklybid = $cfweeklyarray['bid'];
@@ -187,7 +235,7 @@ $cfweeklyask = $cfweeklyarray['ask'];
 
 $cfweeklybidaskspread = round(($cfweeklyask - $cfweeklybid),2);
 $cfweeklybidaskspreadperc = round(($cfweeklybidaskspread / $cfweeklyprice)*100,2); 
-
+$cfweeklymidprice=round(($cfweeklyask + $cfweeklybid)/2,2);
 
 } else {
 $cfweeklyprice = "0";
@@ -202,7 +250,7 @@ return;
 
 //cf contract biweekly
 
-$cfbiweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable=T-XBT:USD-Dec16-W5&unit=USD');
+$cfbiweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable='.$cfbiweekly.'&unit=USD');
 $cfbiweeklyarray = json_decode($cfbiweeklyjson, true);
 
 if (isset($cfbiweeklyarray)) {
@@ -211,7 +259,7 @@ $cfbiweeklyprice = $cfbiweeklyarray['last'];
 $cfbiweeklyspread = round(($cfbiweeklyprice - $cfbpi),2);
 $cfbiweeklyspreadperc = round(($cfbiweeklyspread / $cfbpi)*100, 2);
 
-$cfbiweeklyspreadpa2=(pow(($cfbiweeklyprice/$cfbpi), (365/($okcwdays+7)))-1)*100;
+$cfbiweeklyspreadpa2=(pow(($cfbiweeklyprice/$cfbpi), (365/($cfbiweeklyleft)))-1)*100;
 $cfbiweeklyspreadpa=round($cfbiweeklyspreadpa2,2);
 
 $cfbiweeklybid = $cfbiweeklyarray['bid'];
@@ -219,6 +267,8 @@ $cfbiweeklyask = $cfbiweeklyarray['ask'];
 
 $cfbiweeklybidaskspread = round(($cfbiweeklyask - $cfbiweeklybid),2);
 $cfbiweeklybidaskspreadperc = round(($cfbiweeklybidaskspread / $cfbiweeklyprice)*100,2); 
+
+$cfbiweeklymidprice = round(($cfbiweeklyask + $cfbiweeklybid)/2,2);
 
 } else {
 $cfbiweeklyprice ="0";
@@ -230,79 +280,10 @@ return;
 }
 
 
-// cf triweekly
-
-
-// $cftriweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable=F-XBT:USD-Jul16-W5&unit=USD');
-// $cftriweeklyarray = json_decode($cftriweeklyjson, true);
-
-// if (isset($cftriweeklyarray)) {
-// if ($cftriweeklyarray['result'] == "success") {
-
-// $cftriweeklyprice = $cftriweeklyarray['last'];
-// $cftriweeklyspread = $cftriweeklyprice - $cfbpi;
-// $cftriweeklyspreadperc = round(($cftriweeklyspread / $cfbpi)*100, 2);
-
-// $cftriweeklyspreadpa2=(pow(($cftriweeklyprice/$cfbpi), (365/($okcwdays+14)))-1)*100;
-// $cftriweeklyspreadpa=round($cftriweeklyspreadpa2,2);
-
-// $cftriweeklybid = $cftriweeklyarray['bid'];
-// $cftriweeklyask = $cftriweeklyarray['ask'];
-
-// $cftriweeklybidaskspread = $cftriweeklyask - $cftriweeklybid;
-// $cftriweeklybidaskspreadperc = round(($cftriweeklybidaskspread / $cftriweeklyprice)*100,2); 
-
-
-
-// } else {
-// $cftriweeklyprice = "0";
-// return;
-// } 
-// } else {
-// $cftriweeklyprice = "0";
-// return;
-// }
-
-
-
-
-// cf quadraweekly contract
-
-
-// $cfquadweeklyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable=F-XBT:USD-Aug16-W1&unit=USD');
-// $cfquadweeklyarray = json_decode($cfquadweeklyjson, true);
-
-// if (isset($cfquadweeklyarray)) {
-// if ($cfquadweeklyarray['result'] == "success") {
-
-// $cfquadweeklyprice = $cfquadweeklyarray['last'];
-// $cfquadweeklyspread = $cfquadweeklyprice - $cfbpi;
-// $cfquadweeklyspreadperc = round(($cfquadweeklyspread / $cfbpi)*100, 2);
-
-// $cfquadweeklyspreadpa2=(pow(($cfquadweeklyprice/$cfbpi), (365/($okcwdays+21)))-1)*100;
-// $cfquadweeklyspreadpa=round($cfquadweeklyspreadpa2,2);
-
-// $cfquadweeklybid = $cfquadweeklyarray['bid'];
-// $cfquadweeklyask = $cfquadweeklyarray['ask'];
-
-// $cfquadweeklybidaskspread = $cfquadweeklyask - $cfquadweeklybid;
-// $cfquadweeklybidaskspreadperc = round(($cfquadweeklybidaskspread / $cfquadweeklyprice)*100,2); 
-
-
-//} else {
-//$cfquadweeklyprice = "0";
-//return;
-//} 
-//} else {
-//$cfquadweeklyprice = "0";
-//return;
-//}
-
-
 // cf mar
 
 
-$cfdec16json = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable=F-XBT:USD-Mar17&unit=USD');
+$cfdec16json = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable='.$cfquarterly.'&unit=USD');
 $cfdec16array = json_decode($cfdec16json, true);
 
 if (isset($cfdec16array)) {
@@ -312,11 +293,7 @@ $cfdec16price = $cfdec16array['last'];
 $cfdec16spread = round(($cfdec16price - $cfbpi),2);
 $cfdec16spreadperc = round(($cfdec16spread / $cfbpi)*100, 2);
 
-$cfdecdate = mktime(0, 0, 0, 12, 30, 2016, 0);
-$difference8 = $cfdecdate - $today;
-if ($difference8 < 0) { $difference8 = 0; }
-$cfdecdays = floor($difference8/60/60/24);
-$cfdec16spreadpa2=(pow(($cfdec16price/$cfbpi), (365/$okcqdays))-1)*100;
+$cfdec16spreadpa2=(pow(($cfdec16price/$cfbpi), (365/$cfquarterlyleft))-1)*100;
 $cfdec16spreadpa=round($cfdec16spreadpa2,2);
 
 
@@ -325,7 +302,7 @@ $cfdec16ask = $cfdec16array['ask'];
 
 $cfdec16bidaskspread = round(($cfdec16ask - $cfdec16bid),2);
 $cfdec16bidaskspreadperc = round(($cfdec16bidaskspread / $cfdec16price)*100,2); 
-
+$cfdec16midprice =round(($cfdec16ask + $cfdec16bid)/2,2);
 
 
 } else {
@@ -337,16 +314,85 @@ $cfdec16price = "0";
 return;
 }
 
+//cf contract semianually
+
+$cfsemiannualjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable='.$cfsemiannual.'&unit=USD');
+$cfsemiannualarray = json_decode($cfsemiannualjson, true);
+
+if (isset($cfsemiannualarray)) {
+if ($cfsemiannualarray['result'] == "success") {
+$cfsemiannualprice = $cfsemiannualarray['last'];
+$cfsemiannualspread = round(($cfsemiannualprice - $cfbpi),2);
+$cfsemiannualspreadperc = round(($cfsemiannualspread / $cfbpi)*100, 2);
+
+$cfsemiannualspreadpa2=(pow(($cfsemiannualprice/$cfbpi), (365/($cfsemiannualleft)))-1)*100;
+$cfsemiannualspreadpa=round($cfsemiannualspreadpa2,2);
+
+$cfsemiannualbid = $cfsemiannualarray['bid'];
+$cfsemiannualask = $cfsemiannualarray['ask'];
+
+$cfsemiannualbidaskspread = round(($cfsemiannualask - $cfsemiannualbid),2);
+$cfsemiannualbidaskspreadperc = round(($cfsemiannualbidaskspread / $cfsemiannualprice)*100,2); 
+
+$cfsemiannualmidprice = round(($cfsemiannualask + $cfsemiannualbid)/2,2);
+
+} else {
+$cfsemiannualprice ="0";
+return;
+} 
+} else {
+$cfsemiannualprice ="0";
+return;
+}
+
+//cf contract triquarterly
+
+$cftriquarterlyjson = file_get_contents('https://www.cryptofacilities.com/derivatives/api/ticker?tradeable='.$cftriquarterly.'&unit=USD');
+$cftriquarterlyarray = json_decode($cftriquarterlyjson, true);
+
+if (isset($cftriquarterlyarray)) {
+if ($cftriquarterlyarray['result'] == "success") {
+$cftriquarterlyprice = $cftriquarterlyarray['last'];
+$cftriquarterlyspread = round(($cftriquarterlyprice - $cfbpi),2);
+$cftriquarterlyspreadperc = round(($cftriquarterlyspread / $cfbpi)*100, 2);
+
+$cftriquarterlyspreadpa2=(pow(($cftriquarterlyprice/$cfbpi), (365/($cftriquarterlyleft)))-1)*100;
+$cftriquarterlyspreadpa=round($cftriquarterlyspreadpa2,2);
+
+$cftriquarterlybid = $cftriquarterlyarray['bid'];
+$cftriquarterlyask = $cftriquarterlyarray['ask'];
+
+$cftriquarterlybidaskspread = round(($cftriquarterlyask - $cftriquarterlybid),2);
+$cftriquarterlybidaskspreadperc = round(($cftriquarterlybidaskspread / $cftriquarterlyprice)*100,2); 
+
+$cftriquarterlymidprice =round(($cftriquarterlyask + $cftriquarterlybid)/2,2);
+
+} else {
+$cftriquarterlyprice ="0";
+return;
+} 
+} else {
+$cftriquarterlyprice ="0";
+return;
+}
+
 
 // Deribit 
 
+$nextfriday = strtotime("next friday");
+$currentts = strtotime("now");
+$month=strtoupper(date('M', $nextfriday));
+$day=date('d', $nextfriday);
+$year=date('y', $nextfriday);
+$weeklycont="BTC-".$day.$month.$year;
 
-$derijson = file_get_contents('https://www.deribit.com/api/v1/public/getlasttrades?instrument=BTC-23DEC16');
+
+$derijson = file_get_contents('https://www.deribit.com/api/v1/public/getlasttrades?instrument='.$weeklycont);
 $deriarray = json_decode($derijson, true);
 $deriprice = $deriarray['result'][0]['price'];
 $deriindex = $deriarray['result'][0]['indexPrice'];
 
-$derijson2 = file_get_contents('https://www.deribit.com/api/v1/public/getorderbook?instrument=BTC-23DEC16');
+$derijson2 = file_get_contents('https://www.deribit.com/api/v1/public/getorderbook?instrument='.$weeklycont);
 $deriarray2 = json_decode($derijson2, true);
 
 $deribid = $deriarray2['result']['bids'][0]['price'];
@@ -357,7 +403,7 @@ $deribidaskspreadperc = round(($deribidaskspread / $deriprice)*100,2);
 
 $derispread = round(($deriprice - $deriindex),2);
 $derispreadperc = round(($derispread / $deriindex)*100, 2);
-$derispreadpa2 = round((pow(($deriprice/$deriindex), (365/$okcwdays))-1),2)*100;
+$derispreadpa2 = round((pow(($deriprice/$deriindex), (365/$cfweeklyleft))-1),2)*100;
 $derispreadpa = round($derispreadpa2,2);
 
 
@@ -377,7 +423,7 @@ echo "            text: 'Bitcoin Futures Curve',\n";
 echo "            x: -20 //center\n";
 echo "        },\n";
 echo "        xAxis: {\n";
-echo "            categories: ['Index', 'Weekly', 'BiWeekly', 'Quarterly']\n";
+echo "            categories: ['Index', '$cfweeklydate', '$cfbiweeklydate', '$cfquarterlydate', '$cfsemiannualdate', '$cftriquarterlydate']\n";
 echo "        },\n";
 echo "        yAxis: {\n";
 echo "            title: {\n";
@@ -401,17 +447,19 @@ echo "            borderWidth: 0\n";
 echo "        },\n";
 echo "        series: [{\n";
 echo "            name: 'OKCoin',\n";
-echo "            data: [".$theokcindex.", ".$theokcweekly.", ".$theokcbiweekly.", ".$theokcquarterly."]\n";
+echo "            data: [".$theokcindex.", ".$theokcweekly.", ".$theokcbiweekly.", ".$theokcquarterly.", null, null]\n";
 echo "        }, {\n";
 echo "            name: 'CryptoFacilities',\n";
-echo "            data: [".$cfbpi.", ".$cfweeklyprice.", ".$cfbiweeklyprice.", ".$cfdec16price."]\n";
+echo "            data: [".$cfbpi.", ".$cfweeklymidprice.", ".$cfbiweeklymidprice.", ".$cfdec16midprice.", ".$cfsemiannualmidprice.", ".$cftriquarterlymidprice."]\n";
 echo "        }, {\n";
 echo "            name: 'Deribit',\n";
-echo "            data: [".$deriindex.", ".$deriprice.", null, null]\n";
+echo "            visible: false,\n";
+echo "            data: [".$deriindex.", ".$deriprice.", null, null, null, null]\n";
 echo "        }, {\n";
 echo "            connectNulls: true,\n";
 echo "            name: 'BitMEX',\n";
-echo "            data: [".$bitmexindicative.", null , null, ".$bitmexdailyprice."]\n";
+echo "            visible: false,\n";
+echo "            data: [".$bitmexindicative.", null , null, ".$bitmexdailyprice.", null, null]\n";
 echo "        }]\n";
 echo "    });\n";
 echo "});\n";
@@ -439,7 +487,7 @@ echo "    <th class=\"tg-c9cr\"><span class=\"hotspot\" onmouseover=\"tooltip.sh
 echo "    <th class=\"tg-c9cr\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This shows the spread between the bid and ask on the given contract, in percentage terms.');\" onmouseout=\"tooltip.hide();\">Bid-Ask (%) (?)</span></th>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires every Friday (like all weekly contracts) at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">Weekly (?)</span></td>\n";
+echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires every Friday (like all weekly contracts) at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">Weekly (".$cfweeklydate.") (?)</span></td>\n";
 echo "    <td class=\"tg-yw4l\">$".$theokcweekly."</td>\n";
 echo "    <td class=\"tg-031e\">$".$weeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$weeklyspreadperc2."%</td>\n";
@@ -448,7 +496,7 @@ echo "    <td class=\"tg-031e\">$".$theokcweeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$theokcweeklyspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires next Friday at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">BiWeekly (?)</span></td>\n";
+echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('This contract expires next Friday at 8:00AM UTC');\" onmouseout=\"tooltip.hide();\">BiWeekly (".$cfbiweeklydate.") (?)</span></td>\n";
 echo "    <td class=\"tg-yw4l\">$".$theokcbiweekly."</td>\n";
 echo "    <td class=\"tg-031e\">$".$biweeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$biweeklyspreadperc2."%</td>\n";
@@ -457,7 +505,7 @@ echo "    <td class=\"tg-031e\">$".$theokcbiweeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$theokcbiweeklyspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('The quarterly contract will expire on December 30, 2016');\" onmouseout=\"tooltip.hide();\">Quarterly (Mar31-17) (?)</span></td>\n";
+echo "    <td class=\"tg-e3zv\"><span class=\"hotspot\" onmouseover=\"tooltip.show('The quarterly contract will expire on December 30, 2016');\" onmouseout=\"tooltip.hide();\">Quarterly (".$cfquarterlydate.") (?)</span></td>\n";
 echo "    <td class=\"tg-yw4l\">$".$theokcquarterly."</td>\n";
 echo "    <td class=\"tg-031e\">$".$quarterlyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$quarterlyspreadperc2."%</td>\n";
@@ -480,7 +528,7 @@ echo ".tg .tg-yw4l{vertical-align:top}\n";
 echo "</style>\n";
 echo "<table class=\"tg\">\n";
 echo "  <tr>\n";
-echo "    <th class=\"tg-c9cr\">Type</th>\n";
+echo "    <th class=\"tg-c9cr\">Contract Type</th>\n";
 echo "    <th class=\"tg-yw4l\">Price</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium (%)</th>\n";
@@ -489,7 +537,7 @@ echo "    <th class=\"tg-c9cr\">Bid-Ask Spread ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Bid-Ask (%)</th>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\">Weekly</td>\n";
+echo "    <td class=\"tg-e3zv\">Weekly (".$cfweeklydate.")</td>\n";
 echo "    <td class=\"tg-yw4l\">$".$cfweeklyprice."</td>\n";
 echo "    <td class=\"tg-031e\">$".$cfweeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfweeklyspreadperc."%</td>\n";
@@ -498,7 +546,7 @@ echo "    <td class=\"tg-031e\">$".$cfweeklybidaskspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfweeklybidaskspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\">BiWeekly</td>\n";
+echo "    <td class=\"tg-e3zv\">BiWeekly (".$cfbiweeklydate.")</td>\n";
 echo "    <td class=\"tg-yw4l\">$".$cfbiweeklyprice."</td>\n";
 echo "    <td class=\"tg-031e\">$".$cfbiweeklyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfbiweeklyspreadperc."%</td>\n";
@@ -507,13 +555,31 @@ echo "    <td class=\"tg-031e\">$".$cfbiweeklybidaskspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfbiweeklybidaskspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\">Quarterly (Mar31-17)</td>\n";
+echo "    <td class=\"tg-e3zv\">Quarterly (".$cfquarterlydate.")</td>\n";
 echo "    <td class=\"tg-yw4l\">$".$cfdec16price."</td>\n";
 echo "    <td class=\"tg-031e\">$".$cfdec16spread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfdec16spreadperc."%</td>\n";
 echo "    <td class=\"tg-031e\">".$cfdec16spreadpa."%</td>\n";
 echo "    <td class=\"tg-031e\">$".$cfdec16bidaskspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$cfdec16bidaskspreadperc."%</td>\n";
+echo "  </tr>\n";
+echo "  <tr>\n";
+echo "    <td class=\"tg-e3zv\">Semianually (".$cfsemiannualdate.")</td>\n";
+echo "    <td class=\"tg-yw4l\">$".$cfsemiannualprice."</td>\n";
+echo "    <td class=\"tg-031e\">$".$cfsemiannualspread."</td>\n";
+echo "    <td class=\"tg-031e\">".$cfsemiannualspreadperc."%</td>\n";
+echo "    <td class=\"tg-031e\">".$cfsemiannualspreadpa."%</td>\n";
+echo "    <td class=\"tg-031e\">$".$cfsemiannualbidaskspread."</td>\n";
+echo "    <td class=\"tg-031e\">".$cfsemiannualbidaskspreadperc."%</td>\n";
+echo "  </tr>\n";
+echo "  <tr>\n";
+echo "    <td class=\"tg-e3zv\">TriQuarterly (".$cftriquarterlydate.")</td>\n";
+echo "    <td class=\"tg-yw4l\">$".$cftriquarterlyprice."</td>\n";
+echo "    <td class=\"tg-031e\">$".$cftriquarterlyspread."</td>\n";
+echo "    <td class=\"tg-031e\">".$cftriquarterlyspreadperc."%</td>\n";
+echo "    <td class=\"tg-031e\">".$cftriquarterlyspreadpa."%</td>\n";
+echo "    <td class=\"tg-031e\">$".$cftriquarterlybidaskspread."</td>\n";
+echo "    <td class=\"tg-031e\">".$cftriquarterlybidaskspreadperc."%</td>\n";
 echo "  </tr>\n";
 echo "</table>";
 echo "<br>";
@@ -529,7 +595,7 @@ echo ".tg .tg-yw4l{vertical-align:top}\n";
 echo "</style>\n";
 echo "<table class=\"tg\">\n";
 echo "  <tr>\n";
-echo "    <th class=\"tg-c9cr\">Type</th>\n";
+echo "    <th class=\"tg-c9cr\">Contract Type</th>\n";
 echo "    <th class=\"tg-yw4l\">Price</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium (%)</th>\n";
@@ -538,7 +604,7 @@ echo "    <th class=\"tg-c9cr\">Bid-Ask Spread ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Bid-Ask (%)</th>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\">Weekly</td>\n";
+echo "    <td class=\"tg-e3zv\">Weekly (".$cfweeklydate.")</td>\n";
 echo "    <td class=\"tg-yw4l\">$".$deriprice."</td>\n";
 echo "    <td class=\"tg-031e\">$".$derispread."</td>\n";
 echo "    <td class=\"tg-031e\">".$derispreadperc."%</td>\n";
@@ -561,7 +627,7 @@ echo ".tg .tg-yw4l{vertical-align:top}\n";
 echo "</style>\n";
 echo "<table class=\"tg\">\n";
 echo "  <tr>\n";
-echo "    <th class=\"tg-c9cr\">Type</th>\n";
+echo "    <th class=\"tg-c9cr\">Contract Type</th>\n";
 echo "    <th class=\"tg-yw4l\">Price</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Premium (%)</th>\n";
@@ -570,7 +636,7 @@ echo "    <th class=\"tg-c9cr\">Bid-Ask Spread ($)</th>\n";
 echo "    <th class=\"tg-c9cr\">Bid-Ask (%)</th>\n";
 echo "  </tr>\n";
 echo "  <tr>\n";
-echo "    <td class=\"tg-e3zv\">Quarterly (Mar 31-2017)</td>\n";
+echo "    <td class=\"tg-e3zv\">Quarterly (".$cfquarterlydate.")</td>\n";
 echo "    <td class=\"tg-yw4l\">$".$bitmexdailyprice."</td>\n";
 echo "    <td class=\"tg-031e\">$".$bitmexdailyspread."</td>\n";
 echo "    <td class=\"tg-031e\">".$bitmexdailyspreadperc."%</td>\n";
